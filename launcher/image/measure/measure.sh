@@ -91,10 +91,11 @@ extract_partition_12() {
 
 ##
 # Detects the image mode by inspecting the boot EFI binary itself.
-# `default` images boot via shim, whose PE binary carries a `.sbat` section
-# referencing https://github.com/rhboot/shim. `uki` images ship a UKI PE with
-# no such section. Falls back to `uki` whenever the binary is not a shim
-# (parse failure, missing `.sbat`, or `.sbat` without the rhboot URL).
+# Identifies the binary by section presence: shim PEs carry a `.sbat`
+# section, UKI PEs carry a `.linux` section. The two are mutually exclusive
+# at this boot-EFI position, so presence is sufficient as a positive signal.
+# Errors out if the binary parses but matches neither layout, or matches
+# both, rather than silently misclassifying an unknown image.
 #
 # As a side effect, extracts the boot EFI to $BOOT_EFI_FILE so
 # extract_boot_components does not need to copy it again.
@@ -117,15 +118,50 @@ detect_image_mode() {
     fi
 
     python3 - "$BOOT_EFI_FILE" <<'PY'
-import sys, lief
-b = lief.parse(sys.argv[1])
-if b is None:
-    print("uki"); sys.exit(0)
-sec = b.get_section(".sbat")
-if sec is None:
-    print("uki"); sys.exit(0)
-content = bytes(sec.content)
-print("default" if b"https://github.com/rhboot/shim" in content else "uki")
+import struct, sys
+path = sys.argv[1]
+with open(path, "rb") as f:
+    d = f.read()
+
+# Walk the PE headers directly. lief mis-handles boot EFIs whose optional
+# header carries fewer than 16 data directories (e.g. SizeOfOptionalHeader
+# 0xa0), returning empty section lookups; reading section names from the
+# raw section table sidesteps that.
+if len(d) < 0x40 or d[:2] != b"MZ":
+    sys.stderr.write("Error: '%s' is not a PE binary (bad DOS header)\n" % path)
+    sys.exit(1)
+e_lfanew = struct.unpack_from("<I", d, 0x3C)[0]
+if e_lfanew + 24 > len(d) or d[e_lfanew:e_lfanew+4] != b"PE\0\0":
+    sys.stderr.write("Error: '%s' has invalid PE signature\n" % path)
+    sys.exit(1)
+coff = e_lfanew + 4
+nsec = struct.unpack_from("<H", d, coff + 2)[0]
+size_opt = struct.unpack_from("<H", d, coff + 16)[0]
+sec_tbl = coff + 20 + size_opt
+names = set()
+for i in range(nsec):
+    sh = sec_tbl + i * 40
+    if sh + 8 > len(d):
+        break
+    names.add(bytes(d[sh:sh+8]).rstrip(b"\0").decode("ascii", errors="replace"))
+
+has_sbat = ".sbat" in names
+has_linux = ".linux" in names
+if has_sbat and has_linux:
+    sys.stderr.write(
+        "Error: boot EFI '%s' has both .sbat and .linux sections; "
+        "cannot disambiguate shim vs UKI\n" % path)
+    sys.exit(1)
+if has_linux:
+    print("uki")
+elif has_sbat:
+    print("default")
+else:
+    sys.stderr.write(
+        "Error: boot EFI '%s' has neither .sbat (shim) nor .linux (UKI) "
+        "section; unknown image layout (sections found: %s)\n"
+        % (path, sorted(names)))
+    sys.exit(1)
 PY
 }
 
