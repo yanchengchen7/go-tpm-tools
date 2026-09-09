@@ -47,44 +47,57 @@ func TestConvertEmpty(t *testing.T) {
 }
 
 func TestConvertRequestToREST(t *testing.T) {
-	t.Run("TDX CVM request", func(t *testing.T) {
-		got := convertRequestToREST(verifier.VerifyAttestationRequest{
-			GceInstance: "projects/123/zones/us-central1-a/instances/456",
-			TDCCELAttestation: &verifier.TDCCELAttestation{
-				TdQuote:       []byte("quote"),
-				CcelAcpiTable: []byte("table"),
-				CcelData:      []byte("log"),
+	tests := []struct {
+		name         string
+		req          verifier.VerifyAttestationRequest
+		wantInstance string
+		hasTdCcel    bool
+		hasTpm       bool
+	}{
+		{
+			name: "TDX CVM request",
+			req: verifier.VerifyAttestationRequest{
+				GCEInstance: "projects/123/zones/us-central1-a/instances/456",
+				TDCCELAttestation: &verifier.TDCCELAttestation{
+					TdQuote:       []byte("quote"),
+					CcelAcpiTable: []byte("table"),
+					CcelData:      []byte("log"),
+				},
 			},
-		})
-
-		if got.Instance == "" {
-			t.Error("TDX CVM request is missing instance")
-		}
-		if got.GetTdCcel() == nil {
-			t.Error("TDX CVM request is missing TDCCEL attestation")
-		}
-		if got.TpmAttestation != nil {
-			t.Errorf("TDX CVM request contains TPM attestation: %v", got.TpmAttestation)
-		}
-	})
-
-	t.Run("TPM request", func(t *testing.T) {
-		got := convertRequestToREST(verifier.VerifyAttestationRequest{
-			Attestation: &attestpb.Attestation{
-				Quotes: []*tpm.Quote{{
-					Quote:  []byte("raw quote"),
-					RawSig: []byte("raw sig"),
-				}},
+			wantInstance: "projects/123/zones/us-central1-a/instances/456",
+			hasTdCcel:    true,
+			hasTpm:       false,
+		},
+		{
+			name: "TPM request",
+			req: verifier.VerifyAttestationRequest{
+				Attestation: &attestpb.Attestation{
+					Quotes: []*tpm.Quote{{
+						Quote:  []byte("raw quote"),
+						RawSig: []byte("raw sig"),
+					}},
+				},
 			},
-		})
+			wantInstance: "",
+			hasTdCcel:    false,
+			hasTpm:       true,
+		},
+	}
 
-		if got.Instance != "" {
-			t.Errorf("TPM request unexpectedly contains instance %q", got.Instance)
-		}
-		if got.TpmAttestation == nil {
-			t.Error("TPM request is missing TPM attestation")
-		}
-	})
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := convertRequestToREST(tc.req)
+			if got.Instance != tc.wantInstance {
+				t.Errorf("Instance = %q, want %q", got.Instance, tc.wantInstance)
+			}
+			if (got.GetTdCcel() != nil) != tc.hasTdCcel {
+				t.Errorf("GetTdCcel() != nil is %v, want %v", got.GetTdCcel() != nil, tc.hasTdCcel)
+			}
+			if (got.TpmAttestation != nil) != tc.hasTpm {
+				t.Errorf("TpmAttestation != nil is %v, want %v", got.TpmAttestation != nil, tc.hasTpm)
+			}
+		})
+	}
 }
 
 const (
@@ -655,7 +668,7 @@ func TestConvertCSRequestToREST(t *testing.T) {
 					Nonces:    []string{"test-nonce"},
 					TokenType: "PKI",
 				},
-				GceInstance: "projects/123/zones/us-central1-a/instances/456",
+				GCEInstance: "projects/123/zones/us-central1-a/instances/456",
 			},
 			expectedReq: &ccpb.VerifyConfidentialSpaceRequest{
 				TeeAttestation: &ccpb.VerifyConfidentialSpaceRequest_TpmAttestation{
@@ -703,7 +716,7 @@ func TestConvertCSRequestToREST(t *testing.T) {
 					AkCert:            []byte("test-ak-cert"),
 					IntermediateCerts: [][]byte{[]byte("chain-1"), []byte("chain-2")},
 				},
-				GceInstance: "projects/123/zones/us-central1-a/instances/456",
+				GCEInstance: "projects/123/zones/us-central1-a/instances/456",
 			},
 			expectedReq: &ccpb.VerifyConfidentialSpaceRequest{
 				TeeAttestation: &ccpb.VerifyConfidentialSpaceRequest_TdCcel{
@@ -750,7 +763,7 @@ func TestConvertCSRequestToREST(t *testing.T) {
 						},
 					},
 				},
-				GceInstance: "projects/123/zones/us-central1-a/instances/456",
+				GCEInstance: "projects/123/zones/us-central1-a/instances/456",
 			},
 			expectedReq: &ccpb.VerifyConfidentialSpaceRequest{
 				TeeAttestation: &ccpb.VerifyConfidentialSpaceRequest_TdCcel{

@@ -164,7 +164,7 @@ The OIDC token includes claims regarding the GCE VM, which is verified by Attest
 			TokenOptions:   &models.TokenOptions{Audience: audience, Nonces: customNonce, TokenType: "OIDC"},
 		}
 
-		if teeTechnology == Tdx {
+		if teeTechnology == tdx {
 			// If TDX, check if we should populate TDCCELAttestation
 			if attestation.GetTdxAttestation() != nil {
 				fmt.Fprintln(debugOutput(), "Using Explicit TDCCELAttestation Path (ACPI tables)")
@@ -185,7 +185,7 @@ The OIDC token includes claims regarding the GCE VM, which is verified by Attest
 					return fmt.Errorf("failed to retrieve instance ID from MDS: %w", err)
 				}
 
-				req.GceInstance = fmt.Sprintf("projects/%s/zones/%s/instances/%s", projectNumber, zone, instanceID)
+				req.GCEInstance = fmt.Sprintf("projects/%s/zones/%s/instances/%s", projectNumber, zone, instanceID)
 
 				rawQuote, err := tabi.QuoteToAbiBytes(attestation.GetTdxAttestation())
 				if err != nil {

@@ -33,10 +33,10 @@ var (
 
 // Add constants for other devices when required
 const (
-	// SevSnp is a constant denotes device name for teeTechnology
-	SevSnp = "sev-snp"
-	// Tdx is a constant denotes device name for teeTechnology
-	Tdx = "tdx"
+	// sevSNP is a constant denotes device name for teeTechnology
+	sevSNP = "sev-snp"
+	// tdx is a constant denotes device name for teeTechnology
+	tdx = "tdx"
 )
 
 type pcrsFlag struct {
@@ -336,16 +336,16 @@ func getEK(rwc io.ReadWriter) (*client.Key, error) {
 // getTEEDevice based on teeTechnology set in the global flag vars.
 func getTEEDevice() (client.TEEDevice, error) {
 	switch teeTechnology {
-	case SevSnp:
+	case sevSNP:
 		device, err := client.CreateSevSnpQuoteProvider()
 		if err != nil {
-			return nil, fmt.Errorf("failed to create %s quote provider: %w", SevSnp, err)
+			return nil, fmt.Errorf("failed to create %s quote provider: %w", sevSNP, err)
 		}
 		return device, nil
-	case Tdx:
+	case tdx:
 		device, err := client.CreateTdxQuoteProvider()
 		if err != nil {
-			return nil, fmt.Errorf("failed to create %s quote provider: %w", Tdx, err)
+			return nil, fmt.Errorf("failed to create %s quote provider: %w", tdx, err)
 		}
 		return device, nil
 	case "":
@@ -355,6 +355,6 @@ func getTEEDevice() (client.TEEDevice, error) {
 		return nil, nil
 	default:
 		// Change the return statement when more devices are added
-		return nil, fmt.Errorf("tee-technology should be either empty or should have values %s or %s", SevSnp, Tdx)
+		return nil, fmt.Errorf("tee-technology should be either empty or should have values %s or %s", sevSNP, tdx)
 	}
 }

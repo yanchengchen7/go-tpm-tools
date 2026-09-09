@@ -639,10 +639,11 @@ func (t *tdxAttestRoot) Attest(nonce []byte) (any, error) {
 		return nil, err
 	}
 
-	ccelData, err := os.ReadFile(internal.CCELEventLogFile)
+	ccelData, err := os.ReadFile("/sys/firmware/acpi/tables/data/CCEL")
 	if err != nil {
 		return nil, err
 	}
+
 	// CCEL may contain a lot of trailing 0xFF padding bytes, trimming
 	// them can save bandwidth.
 	// Normally, the eventlog is ended with "Exit Boot Services Returned
@@ -652,7 +653,7 @@ func (t *tdxAttestRoot) Attest(nonce []byte) (any, error) {
 	// This naive trimming logic may cause the replay to fail.
 	ccelData = bytes.TrimRight(ccelData, "\xff")
 
-	ccelTable, err := os.ReadFile(internal.ACPITableFile)
+	ccelTable, err := os.ReadFile("/sys/firmware/acpi/tables/CCEL")
 	if err != nil {
 		return nil, err
 	}
